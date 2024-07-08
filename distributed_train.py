@@ -243,6 +243,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=1, help="Number of epochs to train for")
     parser.add_argument("--lr", type=float, default=1e-6, help="Learning rate")
     parser.add_argument("--eval-steps", type=int, default=500, help="Number of steps between evaluations")
+    parser.add_argument("--run-name", type=str, default=None, help="Run name for wandb")
     parser.add_argument("--max-val-item-count", type=int, default=500, help="Maximum number of items to evaluate on during validation")
     args = parser.parse_args()
 
