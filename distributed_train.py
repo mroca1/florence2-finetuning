@@ -100,10 +100,10 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
 
     # Load the model and processor
     model = AutoModelForCausalLM.from_pretrained(
-        "andito/Florence-2-large-ft", trust_remote_code=True
+        "microsoft/Florence-2-base-ft", trust_remote_code=True
     ).to(device)
     processor = AutoProcessor.from_pretrained(
-        "andito/Florence-2-large-ft", trust_remote_code=True
+        "microsoft/Florence-2-base-ft", trust_remote_code=True
     )
 
     if use_lora:
