@@ -13,7 +13,6 @@ from tqdm import tqdm
 from transformers import (AdamW, AutoModelForCausalLM, AutoProcessor,
                           get_scheduler)
 
-import wandb
 from data import DocVQADataset, TheCauldronDataset, VQAInstructDataset
 from peft import LoraConfig, get_peft_model
 
@@ -79,18 +78,6 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
     device = torch.device(f"cuda:{rank}")
     if run_name is None:
         run_name = fw.generate(2, separator="_")
-
-    # Initialize wandb
-    if rank == 0:  # Only initialize wandb in the main process
-        wandb.init(project="DocVQA-instruct", name=run_name)
-        wandb.config.update({
-            "dataset": dataset_name,
-            "batch_size": batch_size,
-            "use_lora": use_lora,
-            "epochs": epochs,
-            "learning_rate": lr,
-            "eval_steps": eval_steps,
-        })
 
     # Load the dataset based on the dataset_name argument
     if dataset_name == "docvqa":
@@ -198,8 +185,6 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
             global_step += 1
 
             if global_step % eval_steps == 0:
-                if rank == 0:
-                    wandb.log({"step": global_step, "train_loss": train_loss / (global_step*batch_size*world_size)})
 
                 # Evaluation phase
                 model.eval()
@@ -235,18 +220,10 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
                     avg_val_loss = val_loss / val_item_count
                     print(f"Rank {rank} - Step {global_step} - Average Validation Loss ({val_name}): {avg_val_loss}")
 
-                    # Log metrics to wandb
-                    if rank == 0:
-                        wandb.log({f"{val_name}_val_loss": avg_val_loss, "step": global_step})
-
                 model.train()
 
         avg_train_loss = train_loss / len(train_loader)
         print(f"Rank {rank} - Average Training Loss: {avg_train_loss}")
-
-        # Log training loss to wandb
-        if rank == 0:
-            wandb.log({"epoch": epoch + 1, "train_loss": avg_train_loss})
 
         # Save model checkpoint
         if rank == 0:  # Only the main process saves the checkpoint
@@ -255,23 +232,18 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
             model.module.save_pretrained(output_dir)
             processor.save_pretrained(output_dir)
 
-    # Finish the wandb run
-    if rank == 0:
-        wandb.finish()
-
     cleanup()
 
 
 def main():
     parser = argparse.ArgumentParser(description="Train Florence-2 model on specified dataset")
     parser.add_argument("--dataset", type=str, required=True, choices=["docvqa", "cauldron", "vqainstruct"], help="Dataset to train on")
-    parser.add_argument("--batch-size", type=int, default=6, help="Batch size for training")
+    parser.add_argument("--batch-size", type=int, default=2, help="Batch size for training")
     parser.add_argument("--use-lora", action='store_true', help="Use LoRA if this flag is passed")
-    parser.add_argument("--epochs", type=int, default=10, help="Number of epochs to train for")
+    parser.add_argument("--epochs", type=int, default=1, help="Number of epochs to train for")
     parser.add_argument("--lr", type=float, default=1e-6, help="Learning rate")
-    parser.add_argument("--eval-steps", type=int, default=1000, help="Number of steps between evaluations")
-    parser.add_argument("--run-name", type=str, default=None, help="Run name for wandb")
-    parser.add_argument("--max-val-item-count", type=int, default=1000, help="Maximum number of items to evaluate on during validation")
+    parser.add_argument("--eval-steps", type=int, default=500, help="Number of steps between evaluations")
+    parser.add_argument("--max-val-item-count", type=int, default=500, help="Maximum number of items to evaluate on during validation")
     args = parser.parse_args()
 
     world_size = torch.cuda.device_count()
